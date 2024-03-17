@@ -1,0 +1,67 @@
+
+  /**
+   * Handle sort end
+   */
+  const handleSortEnd = ({ data, dropInfo, setLoading }) => {
+    if (
+      !dropInfo ||
+      dropInfo?.oldIndex === dropInfo?.newIndex ||
+      dropInfo?.oldIndex === -1 ||
+      dropInfo?.newIndex === -1
+    ) {
+      return;
+    }
+
+    let newPosition = dropInfo.newIndex;
+    let oldPosition = dropInfo.oldIndex;
+    let isMoveUp = newPosition < oldPosition;
+    let newData = Array.isArray(data) && data.length ? [...data] : [];
+    const indexOfIsNewRow = newData.findIndex(item => item?.isNew);
+    const body = [];
+
+    // Disable drag bellow isNew row
+    if (indexOfIsNewRow !== -1 && newPosition >= indexOfIsNewRow) return;
+
+    // Set loading
+    if (typeof setLoading === 'function') setLoading(true);
+
+    // Calculate topOrderId
+    let bottomOrderId = isMoveUp ? newData[oldPosition]?.orderId : newData[newPosition]?.orderId;
+    bottomOrderId = /^[0-9]*$/.test(bottomOrderId) ? Number(bottomOrderId) : 1;
+    let topOrderId = bottomOrderId + Math.abs(oldPosition - newPosition);
+
+    // Has invalid order ID => Re-order all of rows on current page
+    if (newData.some(item => !/^[0-9]*$/.test(item?.orderId))) {
+      const firstOrderId = newData[0]?.orderId;
+
+      newPosition = 0;
+      oldPosition = newData.length - 1;
+      isMoveUp = newPosition < oldPosition;
+
+      if (/^[0-9]*$/.test(firstOrderId)) {
+        topOrderId = Number(firstOrderId);
+      } else {
+        topOrderId = newData.length;
+      }
+    }
+
+    newData = arrayMoveImmutable(newData, oldPosition, newPosition);
+
+    newData = newData.map((item, idx) => {
+      const newItem = { ...item };
+
+      const isInScope =
+        (isMoveUp && idx >= newPosition && idx <= oldPosition) ||
+        (!isMoveUp && idx >= oldPosition && idx <= newPosition);
+
+      if (isInScope) {
+        newItem.orderId = topOrderId;
+        topOrderId = topOrderId - 1;
+        body.push({ key: newItem.key, orderId: newItem.orderId });
+      }
+
+      return newItem;
+    });
+
+    return { newData, body };
+  };
